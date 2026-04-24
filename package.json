@@ -1,0 +1,12 @@
+{
+  "name": "claude-evolve",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Self-evolving Claude configuration system",
+  "scripts": {
+    "test": "node hooks/reflection-agent.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0"
+  }
+}
