@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Self-evolving Claude configuration system",
   "scripts": {
-    "test": "node hooks/reflection-agent.mjs"
+    "test": "node --test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0"

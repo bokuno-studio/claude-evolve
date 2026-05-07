@@ -11,11 +11,23 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.join(__dirname, "..");
 const INSIGHTS_DIR = path.join(homedir(), ".claude", "evolve");
 const INSIGHTS_PATH = path.join(INSIGHTS_DIR, "insights.md");
+const LOG_PATH = path.join(INSIGHTS_DIR, "reflection-agent.log");
 const PROMPT_PATH = path.join(__dirname, "..", "prompts", "analyze-transcript.md");
 const MIN_MESSAGES = 10;
 const MAX_TRANSCRIPT_CHARS = 40_000;
+const API_KEY_FILE_CANDIDATES = [
+  path.join(PROJECT_ROOT, ".env"),
+  path.join(homedir(), ".claude", ".env"),
+  path.join(homedir(), ".zshenv"),
+  path.join(homedir(), ".zprofile"),
+  path.join(homedir(), ".zshrc"),
+  path.join(homedir(), ".profile"),
+  path.join(homedir(), ".bash_profile"),
+  path.join(homedir(), ".bashrc")
+];
 
 async function main() {
   const input = await readStdin();
@@ -36,10 +48,15 @@ async function main() {
 
   if (dialogTurns.length < MIN_MESSAGES) return;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { apiKey, source } = await resolveAnthropicApiKey();
   if (!apiKey) {
-    process.stderr.write("[reflection-agent] ANTHROPIC_API_KEY not set\n");
+    await logDiagnostic(
+      "[reflection-agent] ANTHROPIC_API_KEY not set; checked process env, repo .env, ~/.claude/.env, and shell startup files"
+    );
     return;
+  }
+  if (source !== "process.env") {
+    await logDiagnostic(`[reflection-agent] loaded ANTHROPIC_API_KEY from ${source}`);
   }
 
   const promptTemplate = await readFile(PROMPT_PATH, "utf8");
@@ -114,6 +131,82 @@ async function callClaude(apiKey, prompt) {
   }
 }
 
+async function resolveAnthropicApiKey(env = process.env, files = API_KEY_FILE_CANDIDATES) {
+  const envKey = normalizeApiKey(env.ANTHROPIC_API_KEY);
+  if (envKey) return { apiKey: envKey, source: "process.env" };
+
+  for (const file of files) {
+    let raw;
+    try {
+      raw = await readFile(file, "utf8");
+    } catch {
+      continue;
+    }
+
+    const fileKey = normalizeApiKey(parseEnvAssignment(raw, "ANTHROPIC_API_KEY"));
+    if (fileKey) return { apiKey: fileKey, source: displayPath(file) };
+  }
+
+  return { apiKey: null, source: null };
+}
+
+function parseEnvAssignment(raw, name) {
+  for (const line of raw.split("\n")) {
+    const match = line.match(new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.*)$`));
+    if (!match) continue;
+
+    const value = unquoteEnvValue(stripTrailingComment(match[1].trim()));
+    if (value && isStaticEnvValue(value)) return value;
+  }
+
+  return null;
+}
+
+function stripTrailingComment(value) {
+  let quote = null;
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if ((char === "\"" || char === "'") && value[i - 1] !== "\\") {
+      quote = quote === char ? null : quote ?? char;
+    }
+    if (char === "#" && !quote && /\s/.test(value[i - 1] ?? "")) {
+      return value.slice(0, i).trim();
+    }
+  }
+  return value.trim();
+}
+
+function unquoteEnvValue(value) {
+  if (value.length < 2) return value;
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === "\"" && last === "\"") || (first === "'" && last === "'")) {
+    return value.slice(1, -1).replace(/\\(["'\\])/g, "$1").trim();
+  }
+  return value;
+}
+
+function normalizeApiKey(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized && isStaticEnvValue(normalized) ? normalized : null;
+}
+
+function isStaticEnvValue(value) {
+  return !/[`$]/.test(value);
+}
+
+async function logDiagnostic(message) {
+  process.stderr.write(`${message}\n`);
+  await mkdir(INSIGHTS_DIR, { recursive: true });
+  const timestamp = new Date().toISOString();
+  await appendFile(LOG_PATH, `${timestamp} ${message}\n`);
+}
+
+function displayPath(file) {
+  const home = homedir();
+  return file.startsWith(`${home}${path.sep}`) ? `~/${path.relative(home, file)}` : file;
+}
+
 async function writeInsights(insights, sessionId) {
   await mkdir(INSIGHTS_DIR, { recursive: true });
 
@@ -139,6 +232,17 @@ function readStdin() {
   });
 }
 
-main()
-  .catch(e => process.stderr.write(`[reflection-agent] fatal: ${e.message}\n`))
-  .finally(() => process.exit(0));
+const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isCli) {
+  main()
+    .catch(e => logDiagnostic(`[reflection-agent] fatal: ${e.message}`))
+    .finally(() => process.exit(0));
+}
+
+export {
+  parseEnvAssignment,
+  resolveAnthropicApiKey,
+  stripTrailingComment,
+  unquoteEnvValue
+};
