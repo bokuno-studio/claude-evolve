@@ -1,0 +1,22 @@
+[2026-04-24 17:07:07] QA hook triggered: bf837037804eabcb9a472f9b463c99ce6e4aada2
+```
+QA 完了: docs/qa/20260424-171102.md
+```
+
+---
+
+**結果サマリー**:
+
+| シナリオ | 結果 |
+|---------|------|
+| ANTHROPIC_API_KEY 未設定 | ✅ pass — stderr に明確なエラー出力、exit 0 |
+| トランスクリプトファイル不在 | ✅ pass — 無音 exit 0 |
+| MIN_MESSAGES 未満の短いトランスクリプト | ✅ pass — ガード正常動作 |
+| 空・不正JSON stdin | ✅ pass — 例外キャッチ済み |
+| 偽APIキーでのエラーハンドリング | ✅ pass — 401エラーをキャッチして exit 0 |
+| session_id のみのフォールバック | ✅ pass — パス解決後に不在で無音終了 |
+| Stop hook 登録確認 | ✅ pass — settings.json に登録済み |
+| E2E（実API呼び出し〜insights.md書き込み） | ⚠️ 要確認 — 実Stop hook発火時のみ検証可能 |
+| v1スコープ外（CLAUDE.md更新・圧縮・スキル更新・project-types） | ⏭ skip |
+
+**要確認**: 次のセッション終了後に `~/.claude/evolve/insights.md` が生成されているか確認することを推奨します。

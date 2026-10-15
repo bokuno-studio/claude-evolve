@@ -1,0 +1,17 @@
+[2026-04-23 17:57:55] QA hook triggered: 53b7e9ef85cf4d7d2b31758f279c825a1a9ad436
+QA 完了: `docs/qa/20260423-175935.md`
+
+---
+
+**結果サマリ**:
+
+- プロジェクト種別: Node.js メタシステム（スキャフォールド段階）
+- 判定: ⚠️ 要確認
+- 2/9 シナリオ pass（Stop hook 設定・CLAUDE.md 行数の静的確認のみ）、7/9 skip
+
+**主な未実装**:
+1. `hooks/reflection-agent.mjs` — CLAUDE.md に仕様あり、Step 1 として実装が必要
+2. `prompts/`, `project-types/` ディレクトリが未作成
+3. `settings.json` の hooks.Stop に reflection-agent の追加が未実施
+
+実装を進める場合は「#XX 実装して」でどうぞ。
